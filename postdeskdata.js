@@ -2,19 +2,21 @@ var fs = require("fs");
 var https = require('https');
 
 //variables for file reading
-var allData = "";
+var allData = ""; // will be reading the data from the csv file into this
 var falseLineEnd = /,"[^"]*$/; // this matches a line that ends with a field starting with a " but which has no closing "
-var logging = true;
-var testing = true;
-var postDataObj = [];
-var postDataString;
+var logging = true; // if false all the output to the console and to the log file won't happen
+var testing = true; // if true instead of posting data to desk.com from the csv file, we the testData object below
+var logFileStream; // for writing the log
+
+var postDataObj = []; // the json object to be posted to desk.com goes in here
+var postDataString; // the stringified version of postDataObj goes in here
 
 //variables for posting
-var httpsOptions;
-var postReq;
+var httpsOptions; // options object for the https request
+var postReq; // the https request 
 
-// functions
-var log;
+// functions - see descriptions above each function
+var log; 
 var testLineEnd;
 var createLineObj;
 
@@ -37,14 +39,19 @@ var testData = {
 }
 
 
-
+// if logging is true this outputs log messages to the console and to the log file
 log = function(message) {
 	if (logging) {
 		console.log(message);
+		logFileStream.write(message);
+		logFileStream.write('\n');
 	}
 } 
 
-
+// set up the log file for writing if we're logging
+if (logging) {
+	logFileStream = fs.createWriteStream('postdeskdata_log.txt');
+}
 
 // set up the options for the https request to post some new customers to the Desk.com API
 httpsOptions = {
@@ -67,6 +74,7 @@ postReq = https.request(httpsOptions, function(response) {
 	
 	response.on('end', function() {
 		log('\nThat\'s all folks!');
+		logFileStream.end();
 	});
 });
 
@@ -96,7 +104,7 @@ testLineEnd = function recursiveTestLineEnd(inputArray,index) {
 
 
 // read the csv file
-source = fs.createReadStream('customers_short.csv'); //    './sample_customers.csv');
+source = fs.createReadStream('customers_short.csv'); //  real file is  'sample_customers.csv');
 
 // get all the data into one variable (since we have a small amount of data)
 source.on('data', function(chunk) {
@@ -166,22 +174,24 @@ source.on('end', function() {
 		
 });
 
-
-createLineObj = function(nameArray, valueArray) {
-	var startQuotes = /^"/;
-	var endComma = /"?,?$/;
+// helper function to take the an array with keys and an array with values and create a json object
+createLineObj = function(keyArray, valueArray) {
+	var startQuotes = /^"/; // identifies a double quote at the beginning of a line in order to strip it out
+	var endComma = /"?,?$/; // identifies a double quote and/or at the end of the line in order to strip it out
 	var i;
-	var result = {};
+	var result = {}; // this is the object we're building
 	
 	log('****fieldValues******');
 	
-	for (i in nameArray) {
+	for (i in keyArray) {
+		// strip out the " and , (see regexes above)
 		valueArray[i] = valueArray[i].replace(startQuotes,'');
 		valueArray[i] = valueArray[i].replace(endComma,'');
 		
 		log(valueArray[i]);
 		
-		result[ nameArray[i] ] = valueArray[i]; 
+		// put the key-value pair into the result object
+		result[ keyArray[i] ] = valueArray[i]; 
 	}
 	
 	log('**************');
